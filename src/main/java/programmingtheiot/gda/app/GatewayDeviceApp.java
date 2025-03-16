@@ -9,12 +9,14 @@
  * Programming the Internet of Things project.
  */ 
 
-package programmingtheiot.gda.app;
+ package programmingtheiot.gda.app;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import programmingtheiot.gda.system.SystemPerformanceManager;
+ import java.util.logging.Level;
+ import java.util.logging.Logger;
+ 
+ import programmingtheiot.common.ConfigConst;
+ import programmingtheiot.common.ConfigUtil;
+ 
 
 /**
  * Main GDA application.
@@ -29,7 +31,7 @@ public class GatewayDeviceApp
 	
 	public static final long DEFAULT_TEST_RUNTIME = 60000L;
 
-	private SystemPerformanceManager sysPerfMgr = null;
+	private DeviceDataManager dataMgr = null;
 	
 	// private var's
 	
@@ -48,7 +50,7 @@ public class GatewayDeviceApp
 		
 		parseArgs(args);
 
-		this.sysPerfMgr = new SystemPerformanceManager();
+		this.dataMgr = new DeviceDataManager();
 	}
 	
 	
@@ -81,48 +83,43 @@ public class GatewayDeviceApp
 	 * Initializes and starts the application.
 	 * 
 	 */
-	public void startApp()
-	{
-		_Logger.info("Starting GDA...");
-		
-		try {
-			if (this.sysPerfMgr.startManager()) {
-				_Logger.info("GDA started successfully.");
-			} else {
-				_Logger.warning("Failed to start system performance manager!");
-				
-			stopApp(-1);
-			}
-
-		} catch (Exception e) {
-			_Logger.log(Level.SEVERE,"Failed to start GDA. Exiting.",e);
-			
-			stopApp(-1);
-		}
-	}
+    public void startApp()
+    {
+        _Logger.info("Starting GDA...");
+        
+        try {
+            if (this.dataMgr != null) {
+                this.dataMgr.startManager();
+            }
+            
+            _Logger.info("GDA started successfully.");
+        } catch (Exception e) {
+            _Logger.log(Level.SEVERE, "Failed to start GDA. Exiting.", e);
+            stopApp(-1);
+        }
+    }
 	
 	/**
 	 * Stops the application.
 	 * 
 	 * @param code The exit code to pass to {@link System.exit()}
 	 */
-	public void stopApp(int code)
-	{
-		_Logger.info("Stopping GDA...");
-		
-		try {
-			if (this.sysPerfMgr.stopManager()){
-				_Logger.log(Level.INFO,"GDA stopped successfully with exit code {0}.",code);
-				} else {
-				_Logger.warning("Failed to stop system performance manager!");
-				}
-
-		} catch (Exception e) {
-			_Logger.log(Level.SEVERE, "Failed to cleanly stop GDA. Exiting.", e);
-		}
-		
-		System.exit(code);
-	}
+    public void stopApp(int code)
+    {
+        _Logger.info("Stopping GDA...");
+        
+        try {
+            if (this.dataMgr != null) {
+                this.dataMgr.stopManager();
+            }
+            
+            _Logger.log(Level.INFO, "GDA stopped successfully with exit code {0}.", code);
+        } catch (Exception e) {
+            _Logger.log(Level.SEVERE, "Failed to cleanly stop GDA. Exiting.", e);
+        }
+        
+        System.exit(code);
+    }
 	
 	
 	// private methods
@@ -134,12 +131,14 @@ public class GatewayDeviceApp
 	 * 
 	 * @param configFile The name of the config file to load.
 	 */
-	private void initConfig(String configFile)
-	{
-		_Logger.log(Level.INFO, "Attempting to load configuration: {0}", (configFile != null ? configFile : "Default."));
-		
-		// TODO: Your code here
-	}
+
+    private void initConfig(String configFile)
+    {
+        _Logger.log(Level.INFO, "Attempting to load configuration: {0}", 
+            (configFile != null ? configFile : "Default."));
+        
+        // TODO: Implement configuration loading logic if necessary.
+    }
 	
 	/**
 	 * Parse any arguments passed in on app startup.
@@ -153,25 +152,24 @@ public class GatewayDeviceApp
 	 * 
 	 * @param args The non-null and non-empty args array.
 	 */
-	private void parseArgs(String[] args)
-	{
-		String configFile = null;
-		
-		if (args != null) {
-			_Logger.log(Level.INFO, "Parsing {0} command line args.", args.length);
-			
-			for (String arg : args) {
-				if (arg != null) {
-					arg = arg.trim();
-					
-					// TODO: Your code here
-				}
-			}
-		} else {
-			_Logger.info("No command line args to parse.");
-		}
-		
-		initConfig(configFile);
-	}
+    private void parseArgs(String[] args)
+    {
+        String configFile = null;
+        
+        if (args != null) {
+            _Logger.log(Level.INFO, "Parsing {0} command line args.", args.length);
+            
+            for (String arg : args) {
+                if (arg != null) {
+                    arg = arg.trim();
+                    // TODO: Process command line arguments as needed
+                }
+            }
+        } else {
+            _Logger.info("No command line args to parse.");
+        }
+        
+        initConfig(configFile);
+    }
 
 }

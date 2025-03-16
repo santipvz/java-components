@@ -54,8 +54,8 @@ public class DataIntegrationTest
 	public static final int DEFAULT_CMD = 1;
 	public static final float DEFAULT_VAL = 12.5f;
 	
-	private static String _CdaDataPath = "";
-	private static String _GdaDataPath = "";
+	private static String _CdaDataPath = "mnt/c/tmp/cda-data";
+	private static String _GdaDataPath = "mnt/c/tmp/gda-data";
 	
 
 	// member var's
@@ -194,7 +194,7 @@ public class DataIntegrationTest
 	{
 		// Read JSON from CDA filesystem
 		String fileName = _CdaDataPath + "/ActuatorData.dat";
-		
+
 		_Logger.info("\n\n----- [ActuatorData JSON from file to object] -----");
 		
 		try {
