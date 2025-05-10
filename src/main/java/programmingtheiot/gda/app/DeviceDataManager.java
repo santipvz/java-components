@@ -183,11 +183,28 @@ public class DeviceDataManager implements IDataMessageListener
      */
     public void startManager()
     {
-        _Logger.info("Starting DeviceDataManager...");
+        if (this.mqttClient != null) {
+            if (this.mqttClient.connectClient()) {
+                _Logger.info("Successfully connected MQTT client to broker.");
+    
+                // add necessary subscriptions
+    
+                int qos = ConfigConst.DEFAULT_QOS;
+                
+                this.mqttClient.subscribeToTopic(ResourceNameEnum.GDA_MGMT_STATUS_MSG_RESOURCE, qos);
+                this.mqttClient.subscribeToTopic(ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE, qos);
+                this.mqttClient.subscribeToTopic(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE, qos);
+                this.mqttClient.subscribeToTopic(ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE, qos);
+            } else {
+                _Logger.severe("Failed to connect MQTT client to broker.");
+    
+                // TODO: take appropriate action
+            }
+        }
+    
         if (this.sysPerfMgr != null) {
             this.sysPerfMgr.startManager();
         }
-        // TODO: Add calls to start other connection clients/servers as implemented
     }
     
     /**
@@ -195,11 +212,22 @@ public class DeviceDataManager implements IDataMessageListener
      */
     public void stopManager()
     {
-        _Logger.info("Stopping DeviceDataManager...");
         if (this.sysPerfMgr != null) {
             this.sysPerfMgr.stopManager();
         }
-        // TODO: Add calls to stop/disconnect other connection clients/servers as implemented
+    
+        if (this.mqttClient != null) {
+            this.mqttClient.unsubscribeFromTopic(ResourceNameEnum.GDA_MGMT_STATUS_MSG_RESOURCE);
+            this.mqttClient.unsubscribeFromTopic(ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE);
+            this.mqttClient.unsubscribeFromTopic(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE);
+            this.mqttClient.unsubscribeFromTopic(ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE);
+    
+            if (this.mqttClient.disconnectClient()) {
+                _Logger.info("Successfully disconnected MQTT client from broker.");
+            } else {
+                _Logger.severe("Failed to disconnect MQTT client from broker.");
+            }
+        }
     }
     
     
@@ -211,30 +239,33 @@ public class DeviceDataManager implements IDataMessageListener
     private void initManager()
     {
         ConfigUtil configUtil = ConfigUtil.getInstance();
-        
-        // Re-read the system performance enablement flag
+    
         this.enableSystemPerf =
-            configUtil.getBoolean(ConfigConst.GATEWAY_DEVICE, ConfigConst.ENABLE_SYSTEM_PERF_KEY);
-        
+            configUtil.getBoolean(ConfigConst.GATEWAY_DEVICE,  ConfigConst.ENABLE_SYSTEM_PERF_KEY);
+    
         if (this.enableSystemPerf) {
             this.sysPerfMgr = new SystemPerformanceManager();
             this.sysPerfMgr.setDataMessageListener(this);
         }
-        
+    
+        // NOTE: This is new - creating the MQTT client connector instance
         if (this.enableMqttClient) {
-            // TODO: Instantiate the MQTT client (e.g., new MqttClientConnector())
+            this.mqttClient = new MqttClientConnector();
+    
+            // NOTE: The next line isn't technically needed until Lab Module 10
+            this.mqttClient.setDataMessageListener(this);
         }
-        
+    
         if (this.enableCoapServer) {
-            // TODO: Instantiate the CoAP server (e.g., new CoapServerGateway())
+            // TODO: implement this in Lab Module 8
         }
-        
+    
         if (this.enableCloudClient) {
-            // TODO: Instantiate the Cloud client (e.g., new CloudClientConnector())
+            // TODO: implement this in Lab Module 10
         }
-        
+    
         if (this.enablePersistenceClient) {
-            // TODO: Instantiate the Persistence client (e.g., new RedisPersistenceAdapter())
+            // TODO: implement this as an optional exercise in Lab Module 5
         }
     }
 
