@@ -54,8 +54,8 @@ public class DataIntegrationTest
 	public static final int DEFAULT_CMD = 1;
 	public static final float DEFAULT_VAL = 12.5f;
 	
-	private static String _CdaDataPath = "mnt/c/tmp/cda-data";
-	private static String _GdaDataPath = "mnt/c/tmp/gda-data";
+	private static String _CdaDataPath = "tmp/cda-data";
+	private static String _GdaDataPath = "tmp/gda-data";
 	
 
 	// member var's
