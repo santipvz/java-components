@@ -5,7 +5,7 @@
  * found in the LICENSE file at the top level of this repository.
  * 
  * Copyright (c) 2020 by Andrew D. King
- */ 
+ */
 
  package programmingtheiot.part03.integration.connection;
 
@@ -19,104 +19,98 @@
  
  import programmingtheiot.common.ConfigConst;
  import programmingtheiot.common.ConfigUtil;
+ import programmingtheiot.common.IDataMessageListener;
  import programmingtheiot.common.ResourceNameEnum;
- import programmingtheiot.gda.connection.MqttClientConnector;
+ import programmingtheiot.data.*;
+ import programmingtheiot.gda.connection.*;
  
  /**
-  * Integration tests for MqttClientConnector, including control packets.
+  * This test case class contains very basic integration tests for
+  * MqttClientControlPacketTest. It should not be considered complete, but serve
+  * as a starting point for the student implementing additional functionality
+  * within their Programming the IoT environment.
+  *
   */
  public class MqttClientControlPacketTest {
-	 private static final Logger _Logger =
-		 Logger.getLogger(MqttClientControlPacketTest.class.getName());
+	 // static
  
-	 private MqttClientConnector mqttClient;
+	 private static final Logger _Logger = Logger.getLogger(MqttClientControlPacketTest.class.getName());
+ 
+	 // member var's
+ 
+	 private MqttClientConnector mqttClient = null;
+	 private int delay;
+ 
+	 // test setup methods
  
 	 @Before
 	 public void setUp() throws Exception {
 		 this.mqttClient = new MqttClientConnector();
+		 this.delay = ConfigUtil.getInstance().getInteger(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.KEEP_ALIVE_KEY,
+				 ConfigConst.DEFAULT_KEEP_ALIVE);
 	 }
  
 	 @After
 	 public void tearDown() throws Exception {
-		 if (this.mqttClient != null) {
-			 this.mqttClient.disconnectClient();
+	 }
+ 
+	 // test methods
+ 
+	 @Test
+	 public void testConnectAndDisconnect() {
+		 assertTrue(this.mqttClient.connectClient());
+		 assertFalse(this.mqttClient.connectClient());
+ 
+		 try {
+			 Thread.sleep(delay * 1000 + 5000);
+		 } catch (Exception e) {
+			 // ignore
 		 }
+ 
+		 assertTrue(this.mqttClient.disconnectClient());
+		 assertFalse(this.mqttClient.disconnectClient());
+		 _Logger.info("testConnectAndDisconnect() is complete.");
 	 }
  
-	 /**
-	  * Test basic connect/disconnect control packets (CONNECT, CONNACK, DISCONNECT).
-	  */
 	 @Test
-	 public void testConnectAndDisconnect() throws InterruptedException {
-		 int delay = ConfigUtil.getInstance()
-				 .getInteger(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.KEEP_ALIVE_KEY, ConfigConst.DEFAULT_KEEP_ALIVE);
+	 public void testServerPing() {
+		 assertTrue(this.mqttClient.connectClient());
+		 assertTrue(this.mqttClient.isConnected());
  
-		 assertTrue("First connect should succeed", this.mqttClient.connectClient());
-		 assertFalse("Second connect should be no-op (already connected)", this.mqttClient.connectClient());
+		 try {
+			 Thread.sleep(delay * 1000 + 5000);
+		 } catch (Exception e) {
+			 // ignore
+		 }
  
-		 // Give a moment to process
-		 Thread.sleep(2000);
- 
-		 assertTrue("First disconnect should succeed", this.mqttClient.disconnectClient());
-		 assertFalse("Second disconnect should be no-op (already disconnected)", this.mqttClient.disconnectClient());
+		 assertTrue(this.mqttClient.isConnected());
+		 assertTrue(this.mqttClient.disconnectClient());
+		 _Logger.info("testServerPing() is complete.");
 	 }
  
-	 /**
-	  * Test automatic PINGREQ/PINGRESP control packets via keep-alive.
-	  */
 	 @Test
-	 public void testServerPing() throws InterruptedException {
-		 int delay = ConfigUtil.getInstance()
-				 .getInteger(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.KEEP_ALIVE_KEY, ConfigConst.DEFAULT_KEEP_ALIVE);
+	 public void testPubSub() {
+		 // IMPORTANT: be sure to use QoS 1 and 2 to see ALL control packets
+		 int[] qosLevels = {0, 1, 2};
  
-		 assertTrue("Connect for ping test should succeed", this.mqttClient.connectClient());
+		 assertTrue(this.mqttClient.connectClient());
  
-		 // Wait longer than keep-alive interval to trigger automatic ping
-		 Thread.sleep(delay * 1000 + 2000);
+		 for (int qos : qosLevels) {
+			 assertTrue(this.mqttClient.subscribeToTopic(ResourceNameEnum.CDA_MGMT_STATUS_MSG_RESOURCE, qos));
  
-		 // Connection should remain alive (connectClient returns false if already connected)
-		 assertFalse("Connect after ping interval should be no-op (still connected)", this.mqttClient.connectClient());
+			 try {
+				 Thread.sleep(delay * 1000);
+			 } catch (Exception e) {
+				 // ignore
+			 }
+			 assertTrue(this.mqttClient.publishMessage(ResourceNameEnum.CDA_MGMT_STATUS_MSG_RESOURCE,
+					 "Test message: QoS " + qos, qos));
  
-		 assertTrue("Disconnect after ping should succeed", this.mqttClient.disconnectClient());
+			 assertTrue(this.mqttClient.unsubscribeFromTopic(ResourceNameEnum.CDA_MGMT_STATUS_MSG_RESOURCE));
+		 }
+ 
+		 assertTrue(this.mqttClient.disconnectClient());
+		 _Logger.info("testPubSub() is complete.");
 	 }
  
-	 /**
-	  * Test publish/subscribe control packets for QoS 1 and 2.
-	  */
-	 @Test
-	 public void testPubSub() throws InterruptedException {
-		 final int qos1 = 1;
-		 final int qos2 = 2;
- 
-		 assertTrue("Connect for pub/sub should succeed", this.mqttClient.connectClient());
- 
-		 // Subscribe with QoS 1
-		 assertTrue("Subscribe QoS1 should succeed", this.mqttClient.subscribeToTopic(
-				 ResourceNameEnum.GDA_MGMT_STATUS_MSG_RESOURCE, qos1));
-		 Thread.sleep(2000);
- 
-		 String payload1 = "TEST: QoS1 payload";
-		 assertTrue("Publish QoS1 should succeed", this.mqttClient.publishMessage(
-				 ResourceNameEnum.GDA_MGMT_STATUS_MSG_RESOURCE, payload1, qos1));
-		 Thread.sleep(2000);
- 
-		 assertTrue("Unsubscribe QoS1 should succeed", this.mqttClient.unsubscribeFromTopic(
-				 ResourceNameEnum.GDA_MGMT_STATUS_MSG_RESOURCE));
- 
-		 // Subscribe with QoS 2
-		 assertTrue("Subscribe QoS2 should succeed", this.mqttClient.subscribeToTopic(
-				 ResourceNameEnum.GDA_MGMT_STATUS_MSG_RESOURCE, qos2));
-		 Thread.sleep(2000);
- 
-		 String payload2 = "TEST: QoS2 payload";
-		 assertTrue("Publish QoS2 should succeed", this.mqttClient.publishMessage(
-				 ResourceNameEnum.GDA_MGMT_STATUS_MSG_RESOURCE, payload2, qos2));
-		 Thread.sleep(2000);
- 
-		 assertTrue("Unsubscribe QoS2 should succeed", this.mqttClient.unsubscribeFromTopic(
-				 ResourceNameEnum.GDA_MGMT_STATUS_MSG_RESOURCE));
- 
-		 assertTrue("Disconnect after pub/sub should succeed", this.mqttClient.disconnectClient());
-	 }
  }
- 
