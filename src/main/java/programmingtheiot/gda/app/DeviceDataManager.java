@@ -130,8 +130,24 @@ public class DeviceDataManager implements IDataMessageListener
     @Override
     public boolean handleActuatorCommandRequest(ResourceNameEnum resourceName, ActuatorData data)
     {
-        // Implementation can be added as needed.
-        return false;
+        if (data != null) {
+            _Logger.info("Handling actuator command request: " + data.getName());
+            
+            // Propagate the command to the actuator data listener
+            if (this.actuatorDataListener != null) {
+                this.actuatorDataListener.onActuatorDataUpdate(data);
+            }
+            
+            // Optionally perform further analysis
+            handleIncomingDataAnalysis(resourceName, data);
+            
+            if (data.hasError()) {
+                _Logger.warning("Error flag set for ActuatorData instance.");
+            }
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override

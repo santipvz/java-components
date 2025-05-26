@@ -6,26 +6,15 @@
  * and designed to be modified by the student as needed.
  */
 
-package programmingtheiot.gda.connection.handlers;
+ package programmingtheiot.gda.connection.handlers;
 
-import java.util.logging.Logger;
-
-import org.eclipse.californium.core.coap.MediaTypeRegistry;
-import org.eclipse.californium.core.CoapResource;
-import org.eclipse.californium.core.coap.CoAP.ResponseCode;
-import org.eclipse.californium.core.server.resources.CoapExchange;
-
-import programmingtheiot.common.ConfigConst;
-import programmingtheiot.common.ConfigUtil;
-import programmingtheiot.common.IDataMessageListener;
-import programmingtheiot.common.ResourceNameEnum;
-import programmingtheiot.data.DataUtil;
-import programmingtheiot.data.SystemPerformanceData;
-
-
-import programmingtheiot.common.IActuatorDataListener;
-import programmingtheiot.data.ActuatorData;
-
+ import org.eclipse.californium.core.coap.CoAP.ResponseCode;
+ import org.eclipse.californium.core.coap.MediaTypeRegistry;
+ import org.eclipse.californium.core.server.resources.CoapExchange;
+ 
+ import programmingtheiot.common.IActuatorDataListener;
+ import programmingtheiot.data.ActuatorData;
+ import programmingtheiot.data.DataUtil;
  
  /**
   * Shell representation of class for student implementation.
@@ -35,7 +24,6 @@ import programmingtheiot.data.ActuatorData;
      // static
  
      // params
-     private static final Logger _Logger = Logger.getLogger(GetActuatorCommandResourceHandler.class.getName());
  
      private ActuatorData actuatorData = null;
  
@@ -43,7 +31,7 @@ import programmingtheiot.data.ActuatorData;
  
      public GetActuatorCommandResourceHandler(String resourceName) {
          super(resourceName);
- 
+         this.actuatorData = new ActuatorData();
          // set the resource to be observable
          super.setObservable(true);
      }
