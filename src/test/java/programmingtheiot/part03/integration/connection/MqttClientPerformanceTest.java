@@ -75,6 +75,14 @@
 		 long startMillis = System.currentTimeMillis();
  
 		 assertTrue(this.mqttClient.connectClient());
+		 
+		 // Add a small delay to allow subscriptions to complete
+		 try {
+			 Thread.sleep(1000);
+		 } catch (InterruptedException e) {
+			 _Logger.warning("Sleep interrupted: " + e.getMessage());
+		 }
+		 
 		 assertTrue(this.mqttClient.disconnectClient());
  
 		 long endMillis = System.currentTimeMillis();

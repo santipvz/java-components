@@ -185,18 +185,18 @@
 	 @Override
 	 public boolean publishMessage(ResourceNameEnum topicName, String msg, int qos) {
 		 if (topicName == null) {
-			 _Logger.warning("Resource is null. Unable to publish message: " + this.brokerAddr);
+			 //_Logger.warning("Resource is null. Unable to publish message: " + this.brokerAddr);
 			 return false;
 		 }
  
 		 if (msg == null || msg.length() == 0) {
-			 _Logger.warning("Message is null or empty. Unable to publish message: " + this.brokerAddr);
+			 //_Logger.warning("Message is null or empty. Unable to publish message: " + this.brokerAddr);
 			 return false;
 		 }
  
 		 if (qos < 0 || qos > 2) {
 			 qos = ConfigConst.DEFAULT_QOS;
-			 _Logger.warning("Invalid QoS value detected. Using default value: " + qos);
+			 //_Logger.warning("Invalid QoS value detected. Using default value: " + qos);
 		 }
  
 		 try {
@@ -210,7 +210,7 @@
 			 }
 			 return true;
 		 } catch (Exception e) {
-			 _Logger.log(Level.SEVERE, "Failed to publish message to topic: " + topicName, e);
+			 //_Logger.log(Level.SEVERE, "Failed to publish message to topic: " + topicName, e);
 		 }
  
 		 return false;
@@ -307,7 +307,7 @@
  
 	 @Override
 	 public void deliveryComplete(IMqttDeliveryToken token) {
-		 _Logger.info("Delivered MQTT message with ID: " + token.getMessageId());
+		 //_Logger.info("Delivered MQTT message with ID: " + token.getMessageId());
 	 }
  
 	 @Override

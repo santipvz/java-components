@@ -68,7 +68,9 @@ public class GatewayDeviceApp
 		gwApp.startApp();
 		
 		try {
-			Thread.sleep(DEFAULT_TEST_RUNTIME);
+			while (true) {
+				Thread.sleep(1000L);
+			}
 		} catch (InterruptedException e) {
 			// ignore
 		}
