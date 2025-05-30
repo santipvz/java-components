@@ -123,6 +123,13 @@ public class GatewayDeviceApp
         System.exit(code);
     }
 	
+	/**
+	 * Devuelve la instancia de DeviceDataManager gestionada por la app.
+	 */
+	public DeviceDataManager getDeviceDataManager() {
+		return this.dataMgr;
+	}
+	
 	
 	// private methods
 	

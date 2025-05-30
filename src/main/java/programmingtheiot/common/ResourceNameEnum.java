@@ -51,7 +51,9 @@ public enum ResourceNameEnum
 	GDA_REGISTRATION_REQUEST_RESOURCE(
 		ConfigConst.PRODUCT_NAME, ConfigConst.GATEWAY_DEVICE, ConfigConst.RESOURCE_REGISTRATION_REQUEST, false, false),
 	GDA_SYSTEM_PERF_MSG_RESOURCE(
-		ConfigConst.PRODUCT_NAME, ConfigConst.GATEWAY_DEVICE, ConfigConst.SYSTEM_PERF_MSG, false, false);
+		ConfigConst.PRODUCT_NAME, ConfigConst.GATEWAY_DEVICE, ConfigConst.SYSTEM_PERF_MSG, false, false),
+	GDA_ACTUATOR_CMD_RESOURCE(
+		ConfigConst.PRODUCT_NAME, ConfigConst.GATEWAY_DEVICE, ConfigConst.ACTUATOR_CMD, false, true);
 	
 	private static final HashMap<String, ResourceNameEnum> _ResourceNameLookupMap = new HashMap<>();
 	

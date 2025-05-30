@@ -197,11 +197,29 @@ public class DeviceDataManager implements IDataMessageListener
     public boolean handleIncomingMessage(ResourceNameEnum resourceName, String msg)
     {
         if (msg != null) {
-            _Logger.info("Handling incoming generic message: " + msg);
-            return true;
-        } else {
-            return false;
+            _Logger.info("Handling incoming message: " + msg);
+            
+            // Handle cloud events
+            if (resourceName == ResourceNameEnum.GDA_ACTUATOR_CMD_RESOURCE) {
+                try {
+                    ActuatorData actuatorData = DataUtil.getInstance().jsonToActuatorData(msg);
+                    if (actuatorData != null) {
+                        // Forward to CDA
+                        sendActuatorCommandtoCda(ResourceNameEnum.CDA_ACTUATOR_CMD_RESOURCE, actuatorData);
+                        
+                        // Store in persistence
+                        if (this.persistenceClient != null) {
+                            this.persistenceClient.storeData(ConfigConst.ACTUATOR_CMD, ConfigConst.DEFAULT_QOS, actuatorData);
+                        }
+                        
+                        return true;
+                    }
+                } catch (Exception e) {
+                    _Logger.log(Level.WARNING, "Failed to parse cloud actuator command: " + msg, e);
+                }
+            }
         }
+        return false;
     }
 
     @Override
@@ -374,37 +392,38 @@ public class DeviceDataManager implements IDataMessageListener
      */
     private void initManager()
     {
-        ConfigUtil configUtil = ConfigUtil.getInstance();
-    
-        this.enableSystemPerf =
-            configUtil.getBoolean(ConfigConst.GATEWAY_DEVICE,  ConfigConst.ENABLE_SYSTEM_PERF_KEY);
-    
-        if (this.enableSystemPerf) {
-            this.sysPerfMgr = new SystemPerformanceManager();
-            this.sysPerfMgr.setDataMessageListener(this);
-        }
-    
-        // NOTE: This is new - creating the MQTT client connector instance
+        // Initialize MQTT client if enabled
         if (this.enableMqttClient) {
             this.mqttClient = new MqttClientConnector();
-    
-            // NOTE: The next line isn't technically needed until Lab Module 10
             this.mqttClient.setDataMessageListener(this);
         }
-    
+        
+        // Initialize CoAP server if enabled
         if (this.enableCoapServer) {
             this.coapServer = new CoapServerGateway(this);
         }
-    
+        
+        // Initialize cloud client if enabled
         if (this.enableCloudClient) {
-            // TODO: implement this in Lab Module 10
-            // Initialize the CloudClientConnector
             this.cloudClient = new CloudClientConnector();
             this.cloudClient.setDataMessageListener(this);
+            
+            // Subscribe to cloud events
+            if (this.cloudClient instanceof IPubSubClient) {
+                IPubSubClient pubSubClient = (IPubSubClient) this.cloudClient;
+                pubSubClient.subscribeToTopic(ResourceNameEnum.GDA_ACTUATOR_CMD_RESOURCE, ConfigConst.DEFAULT_QOS);
+            }
         }
-    
+        
+        // Initialize persistence client if enabled
         if (this.enablePersistenceClient) {
-            // TODO: implement this as an optional exercise in Lab Module 5
+            this.persistenceClient = new RedisPersistenceAdapter();
+        }
+        
+        // Initialize system performance manager if enabled
+        if (this.enableSystemPerf) {
+            this.sysPerfMgr = new SystemPerformanceManager();
+            this.sysPerfMgr.setDataMessageListener(this);
         }
     }
 
@@ -422,9 +441,40 @@ public class DeviceDataManager implements IDataMessageListener
 
     private void handleIncomingDataAnalysis(ResourceNameEnum resourceName, SensorData data)
     {
-        // Check if this is humidity sensor data
-        if (data.getTypeID() == ConfigConst.HUMIDITY_SENSOR_TYPE) {
-            handleHumiditySensorAnalysis(resourceName, data);
+        if (data != null) {
+            // Store latest sensor data
+            if (data.getTypeID() == ConfigConst.HUMIDITY_SENSOR_TYPE) {
+                this.latestHumiditySensorData = data;
+                this.latestHumiditySensorTimeStamp = getDateTimeFromData(data);
+                handleHumiditySensorAnalysis(resourceName, data);
+            }
+            
+            // Custom actuation event algorithm based on temperature and humidity trends
+            if (data.getTypeID() == ConfigConst.TEMP_SENSOR_TYPE) {
+                float currentTemp = data.getValue();
+                float currentHumidity = this.latestHumiditySensorData != null ? 
+                    this.latestHumiditySensorData.getValue() : 0.0f;
+                
+                // Calculate heat index
+                float heatIndex = calculateHeatIndex(currentTemp, currentHumidity);
+                
+                // If heat index is too high, trigger cooling
+                if (heatIndex > 30.0f) {
+                    ActuatorData coolingData = new ActuatorData();
+                    coolingData.setName("CoolingSystem");
+                    coolingData.setTypeID(ConfigConst.HVAC_ACTUATOR_TYPE);
+                    coolingData.setCommand(ConfigConst.ON_COMMAND);
+                    coolingData.setStateData(String.valueOf(heatIndex));
+                    
+                    // Send to CDA
+                    sendActuatorCommandtoCda(ResourceNameEnum.CDA_ACTUATOR_CMD_RESOURCE, coolingData);
+                    
+                    // Store in persistence
+                    if (this.persistenceClient != null) {
+                        this.persistenceClient.storeData(ConfigConst.ACTUATOR_CMD, ConfigConst.DEFAULT_QOS, coolingData);
+                    }
+                }
+            }
         }
     }
 
@@ -511,6 +561,12 @@ public class DeviceDataManager implements IDataMessageListener
                     "ERROR: ActuatorData for humidifier is null (shouldn't be). Can't send command.");
             }
         }
+    }
+
+    private float calculateHeatIndex(float temperature, float humidity) {
+        // Simple heat index calculation
+        float heatIndex = temperature + 0.348f * humidity - 0.7f * temperature * humidity / 100.0f;
+        return heatIndex;
     }
 
     private void sendActuatorCommandtoCda(ResourceNameEnum resource, ActuatorData data)
