@@ -69,11 +69,11 @@ enableConfirmedMsgs = True
 [GatewayDevice]
 deviceLocationID        = gatewaydevice001
 enableLogging           = True
-pollCycleSecs           = 60
+pollCycleSecs           = 30
 enableMqttClient        = True
 enableCoapServer        = True
 enableCoapClient        = False
-enableCloudClient       = False
+enableCloudClient       = True
 enableSmtpClient        = False
 enablePersistenceClient = True
 enableSystemPerformance = True

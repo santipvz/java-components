@@ -40,6 +40,7 @@ import programmingtheiot.gda.connection.ICloudClient;
 
 // Updated import for SystemPerformanceManager
 import programmingtheiot.gda.system.SystemPerformanceManager;
+import programmingtheiot.gda.app.CustomActuationManager;
 
 public class DeviceDataManager implements IDataMessageListener
 {
@@ -63,6 +64,7 @@ public class DeviceDataManager implements IDataMessageListener
     private IRequestResponseClient smtpClient = null;
     private CoapServerGateway coapServer = null;
     private SystemPerformanceManager sysPerfMgr = null;
+    private CustomActuationManager customActuationMgr = null;
 
     // Humidity threshold variables
     private ActuatorData latestHumidifierActuatorData = null;
@@ -196,27 +198,28 @@ public class DeviceDataManager implements IDataMessageListener
     @Override
     public boolean handleIncomingMessage(ResourceNameEnum resourceName, String msg)
     {
-        if (msg != null) {
-            _Logger.info("Handling incoming message: " + msg);
+        if (resourceName != null && msg != null) {
+            _Logger.fine("Handling incoming message for resource: " + resourceName);
             
-            // Handle cloud events
-            if (resourceName == ResourceNameEnum.GDA_ACTUATOR_CMD_RESOURCE) {
-                try {
-                    ActuatorData actuatorData = DataUtil.getInstance().jsonToActuatorData(msg);
-                    if (actuatorData != null) {
-                        // Forward to CDA
-                        sendActuatorCommandtoCda(ResourceNameEnum.CDA_ACTUATOR_CMD_RESOURCE, actuatorData);
-                        
-                        // Store in persistence
-                        if (this.persistenceClient != null) {
-                            this.persistenceClient.storeData(ConfigConst.ACTUATOR_CMD, ConfigConst.DEFAULT_QOS, actuatorData);
+            try {
+                if (resourceName == ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE) {
+                    SensorData sensorData = DataUtil.getInstance().jsonToSensorData(msg);
+                    
+                    if (sensorData != null) {
+                        // Handle sensor data with custom actuation manager
+                        if (this.customActuationMgr != null) {
+                            this.customActuationMgr.handleSensorData(sensorData);
                         }
                         
-                        return true;
+                        // Store sensor data
+                        if (this.persistenceClient != null) {
+                            this.persistenceClient.storeData(sensorData.getName(), 0, sensorData);
+                        }
                     }
-                } catch (Exception e) {
-                    _Logger.log(Level.WARNING, "Failed to parse cloud actuator command: " + msg, e);
                 }
+                return true;
+            } catch (Exception e) {
+                _Logger.log(Level.WARNING, "Failed to handle incoming message: " + msg, e);
             }
         }
         return false;
@@ -407,6 +410,9 @@ public class DeviceDataManager implements IDataMessageListener
         if (this.enableCloudClient) {
             this.cloudClient = new CloudClientConnector();
             this.cloudClient.setDataMessageListener(this);
+            
+            // Initialize custom actuation manager
+            this.customActuationMgr = new CustomActuationManager((CloudClientConnector)this.cloudClient);
             
             // Subscribe to cloud events
             if (this.cloudClient instanceof IPubSubClient) {
