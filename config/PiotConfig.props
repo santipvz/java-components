@@ -11,18 +11,18 @@
 # Cloud client configuration information
 #
 [Cloud.GatewayService]
-credFile       = ./cred/PiotCloudCred.props
-certFile       = ./cert/PiotCloudCert.pem
-host           = localhost
+credFile       = /home/santi/Escritorio/PIC/java-components/config/cred/UbidotsCloudCred.props
+certFile       = /home/santi/Escritorio/PIC/java-components/config/cred/UbidotsCloudCert.pem
+host           = industrial.api.ubidots.com
 port           = 1883
 securePort     = 8883
 defaultQoS     = 0
 keepAlive      = 60
-useAsyncClient = True
 enableAuth     = True
 enableCrypt    = True
-baseUrl        = 
-baseTopic      = 
+baseUrl        =
+baseTopic      = /v1.6/devices/
+
 
 #
 # SMTP client configuration information
@@ -39,13 +39,13 @@ enableCrypt    = True
 # MQTT client configuration information
 #
 [Mqtt.GatewayService]
-credFile       = ./cred/PiotMqttCred.props
-certFile       = ./cert/PiotMqttLocalCertFile.pem
+credFile       = /home/santi/Escritorio/PIC/java-components/config/cred/UbidotsCloudCred.props
+certFile       = /home/santi/Escritorio/PIC/java-components/config/cred/UbidotsCloudCert.pem
 host           = localhost
 port           = 1883
 securePort     = 8883
 defaultQoS     = 0
-keepAlive      = 60
+keepAlive      = 30
 enableAuth     = False
 enableCrypt    = False
 useAsyncClient = False
@@ -54,8 +54,8 @@ useAsyncClient = False
 # CoAP client and server configuration information
 #
 [Coap.GatewayService]
-credFile       = ./cred/PiotCoapCred.props
-certFile       = ./cert/PiotCoapLocalCertFile.pem
+credFile       = /home/santi/Escritorio/PIC/java-components/config/cred/UbidotsCloudCred.props
+certFile       = /home/santi/Escritorio/PIC/java-components/config/cred/UbidotsCloudCert.pem
 host           = localhost
 port           = 5683
 securePort     = 5684
@@ -73,7 +73,7 @@ pollCycleSecs           = 60
 enableMqttClient        = True
 enableCoapServer        = True
 enableCoapClient        = False
-enableCloudClient       = False
+enableCloudClient       = True
 enableSmtpClient        = False
 enablePersistenceClient = False
 enableSystemPerformance = False

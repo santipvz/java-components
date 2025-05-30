@@ -23,16 +23,16 @@ import programmingtheiot.common.DefaultDataMessageListener;
 import programmingtheiot.common.ResourceNameEnum;
 import programmingtheiot.data.SensorData;
 import programmingtheiot.data.SystemPerformanceData;
+import programmingtheiot.data.ActuatorData;
 import programmingtheiot.gda.app.DeviceDataManager;
 import programmingtheiot.gda.connection.*;
 
 /**
- * This test case class contains very basic integration tests for
- * CloudClientConnector. It should not be considered complete,
- * but serve as a starting point for the student implementing
- * additional functionality within their Programming the IoT
- * environment.
- *
+ * This test case class contains integration tests for CloudClientConnector.
+ * It implements three test cases:
+ * 1. Basic sensor data publishing to cloud
+ * 2. LED actuation event triggering and handling
+ * 3. End-to-end integration test with CDA and GDA
  */
 public class CloudClientConnectorTest
 {
@@ -41,162 +41,213 @@ public class CloudClientConnectorTest
 	private static final Logger _Logger =
 		Logger.getLogger(CloudClientConnectorTest.class.getName());
 	
-	
 	// member var's
 	
-	private List<ICloudClient> cloudClientList = null;
 	private ICloudClient cloudClient = null;
-	
+	private DefaultDataMessageListener dataMsgListener = null;
+	private MqttClientConnector mqttClient = null;
 	
 	// test setup methods
 	
-	/**
-	 * @throws java.lang.Exception
-	 */
 	@Before
 	public void setUp() throws Exception
 	{
 		this.cloudClient = new CloudClientConnector();
+		this.dataMsgListener = new DefaultDataMessageListener();
+		this.cloudClient.setDataMessageListener(this.dataMsgListener);
+		
+		// Get the MQTT client instance for connection state verification
+		if (this.cloudClient instanceof CloudClientConnector) {
+			this.mqttClient = ((CloudClientConnector) this.cloudClient).getMqttClient();
+		}
 	}
 	
-	/**
-	 * @throws java.lang.Exception
-	 */
 	@After
 	public void tearDown() throws Exception
 	{
-	}
-	
-	// test methods
-	
-	/**
-	 * Test method for {@link programmingtheiot.gda.connection.UbidotsMqttCloudClientConnector#connectClient()}.
-	 */
-//	@Test
-	public void testCloudClientConnectAndDisconnect()
-	{
-		this.cloudClient.setDataMessageListener(new DefaultDataMessageListener());
-		
-		assertTrue(this.cloudClient.connectClient());
-		
-		try {
-			// sleep for a minute or so...
-			
-			Thread.sleep(60000L);
-		} catch (Exception e) {
-			// ignore
+		if (this.cloudClient != null) {
+			// Only attempt disconnect if we have a valid connection
+			if (this.mqttClient != null && this.mqttClient.isConnected()) {
+				this.cloudClient.disconnectClient();
+				// Wait for disconnect to complete
+				Thread.sleep(1000L);
+			}
 		}
-		
-		assertTrue(this.cloudClient.disconnectClient());
-		
-		_Logger.info("Test complete.");
 	}
 	
 	/**
-	 * Test method
+	 * Test 1: Basic sensor data publishing to cloud
+	 * - Create CloudClientConnector instance
+	 * - Generate and publish SensorData
+	 * - Verify data received in cloud service
 	 */
 	@Test
-	public void testIntegratedCloudClientConnectAndDisconnect()
+	public void testSensorDataPublishing()
 	{
-		DeviceDataManager ddm = new DeviceDataManager();
-		ddm.startManager();
+		_Logger.info("Starting Test 1: Basic sensor data publishing");
+		
+		assertTrue("Failed to connect to cloud service", this.cloudClient.connectClient());
 		
 		try {
-			// sleep for a minute or so...
+			// Wait for connection to establish
+			Thread.sleep(2000L);
 			
-			Thread.sleep(60000L);
+			// Verify connection is established
+			assertTrue("MQTT client not connected", this.mqttClient != null && this.mqttClient.isConnected());
+			
+			// Create sample sensor data
+			SensorData sensorData = new SensorData();
+			sensorData.setName(ConfigConst.TEMP_SENSOR_NAME);
+			sensorData.setValue(92.0f);
+			
+			// Publish to cloud
+			assertTrue("Failed to publish sensor data", 
+				this.cloudClient.sendEdgeDataToCloud(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE, sensorData));
+			
+			// Wait for data to be processed
+			Thread.sleep(5000L);
+			
+			// TODO: Add verification of data in cloud service
+			// This would typically involve querying the cloud service API
+			// to verify the data was received and stored
+			
 		} catch (Exception e) {
-			// ignore
+			fail("Test failed with exception: " + e.getMessage());
+		} finally {
+			if (this.mqttClient != null && this.mqttClient.isConnected()) {
+				assertTrue("Failed to disconnect from cloud service", this.cloudClient.disconnectClient());
+			}
 		}
 		
-		ddm.stopManager();
-		
-		_Logger.info("Test complete.");
+		_Logger.info("Test 1 complete.");
 	}
 	
 	/**
-	 * Test method for {@link programmingtheiot.gda.connection.UbidotsMqttCloudClientConnector#publishMessage(programmingtheiot.common.ResourceNameEnum, java.lang.String, int)}.
+	 * Test 2: LED actuation event triggering and handling
+	 * - Create CloudClientConnector instance
+	 * - Subscribe to LED actuator topic
+	 * - Generate threshold-crossing sensor data
+	 * - Verify actuation event triggered and received
 	 */
-//	@Test
-	public void testPublishAndSubscribe()
+	@Test
+	public void testLedActuationEvent()
 	{
-		this.cloudClient.setDataMessageListener(new DefaultDataMessageListener());
-		
-		assertTrue(this.cloudClient.connectClient());
+		_Logger.info("Starting Test 2: LED actuation event testing");
 		
 		try {
-			// sleep for a couple of seconds or so...
-			// 
-			// TODO: if cloudClient delegates to MqttClientConnector,
-			// which in turn delegates to MqttAsyncClient, the timing
-			// of the sleep cycle may need to be manually adjusted to
-			// allow the connection to complete
+			// First ensure we're disconnected
+			if (this.mqttClient != null && this.mqttClient.isConnected()) {
+				this.cloudClient.disconnectClient();
+				Thread.sleep(1000L);
+			}
 			
-			Thread.sleep(2000L);
+			// Connect to cloud service
+			assertTrue("Failed to connect to cloud service", this.cloudClient.connectClient());
+			
+			// Wait for connection to establish with multiple retries
+			int maxRetries = 10;
+			int retryCount = 0;
+			boolean isConnected = false;
+			
+			while (!isConnected && retryCount < maxRetries) {
+				Thread.sleep(1000L);
+				if (this.mqttClient != null) {
+					isConnected = this.mqttClient.isConnected();
+					_Logger.info("Connection attempt " + (retryCount + 1) + ": " + (isConnected ? "Connected" : "Not connected"));
+				}
+				retryCount++;
+			}
+			
+			assertTrue("MQTT client not connected after " + maxRetries + " retries", isConnected);
+			
+			// Subscribe to LED actuator topic
+			assertTrue("Failed to subscribe to LED actuator topic",
+				this.cloudClient.subscribeToCloudEvents(ResourceNameEnum.CDA_ACTUATOR_CMD_RESOURCE));
+			
+			// Generate multiple sensor readings that cross threshold
+			for (int i = 0; i < 5; i++) {
+				// Verify connection is still established before each publish
+				assertTrue("MQTT client not connected", this.mqttClient != null && this.mqttClient.isConnected());
+				
+				SensorData sensorData = new SensorData();
+				sensorData.setName(ConfigConst.TEMP_SENSOR_NAME);
+				sensorData.setValue(95.0f + i); // Values above threshold
+				
+				assertTrue("Failed to publish sensor data",
+					this.cloudClient.sendEdgeDataToCloud(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE, sensorData));
+				
+				Thread.sleep(1000L);
+			}
+			
+			// Wait for actuation event to be triggered and received
+			Thread.sleep(10000L);
+			
+			// TODO: Add verification of actuation event in cloud service
+			// This would typically involve querying the cloud service API
+			// to verify the actuation event was triggered
+			
+			// Verify message was received by CloudClientConnector
+			// This would be handled by the DefaultDataMessageListener
+			// which should have received the actuation event
+			
 		} catch (Exception e) {
-			// ignore
+			fail("Test failed with exception: " + e.getMessage());
+		} finally {
+			if (this.mqttClient != null && this.mqttClient.isConnected()) {
+				assertTrue("Failed to unsubscribe from LED actuator topic",
+					this.cloudClient.unsubscribeFromCloudEvents(ResourceNameEnum.CDA_ACTUATOR_CMD_RESOURCE));
+				assertTrue("Failed to disconnect from cloud service", this.cloudClient.disconnectClient());
+			}
 		}
 		
-		SensorData sensorData = new SensorData();
-		sensorData.setName(ConfigConst.TEMP_SENSOR_NAME);
-		sensorData.setValue(92.0f);
-		
-		SystemPerformanceData sysPerfData = new SystemPerformanceData();
-		sysPerfData.setCpuUtilization(34.7f);
-		sysPerfData.setMemoryUtilization(39.8f);
-		
-		assertTrue(this.cloudClient.subscribeToCloudEvents(ResourceNameEnum.CDA_ACTUATOR_CMD_RESOURCE));
-		
-		try {
-			// sleep for a few seconds...
-			// 
-			// TODO: if cloudClient delegates to MqttClientConnector,
-			// which in turn delegates to MqttAsyncClient, the timing
-			// of the sleep cycle may need to be manually adjusted to
-			// allow the connection to complete (even though the method
-			// call may assume success if using an async connect)
-			
-			Thread.sleep(5000L);
-		} catch (Exception e) {
-			// ignore
-		}
-		
-		assertTrue(this.cloudClient.sendEdgeDataToCloud(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE, sensorData));
-		assertTrue(this.cloudClient.sendEdgeDataToCloud(ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE, sysPerfData));
-		
-		try {
-			// sleep for half a minute or so...
-			
-			Thread.sleep(30000L);
-		} catch (Exception e) {
-			// ignore
-		}
-		
-		assertTrue(this.cloudClient.unsubscribeFromCloudEvents(ResourceNameEnum.CDA_ACTUATOR_CMD_RESOURCE));
-
-		try {
-			// sleep for a minute or so...
-			
-			Thread.sleep(50000L);
-		} catch (Exception e) {
-			// ignore
-		}
-
-		assertTrue(this.cloudClient.disconnectClient());
-
-		try {
-			// sleep for a couple of seconds or so...
-			// 
-			// TODO: if cloudClient delegates to MqttClientConnector,
-			// which in turn delegates to MqttAsyncClient, the timing
-			// of the sleep cycle may need to be manually adjusted to
-			// allow the disconnect to complete (even though the method
-			// call may assume success if using an async disconnect)
-			
-			Thread.sleep(2000L);
-		} catch (Exception e) {
-			// ignore
-		}
+		_Logger.info("Test 2 complete.");
 	}
 	
+	/**
+	 * Test 3: End-to-end integration test
+	 * - Start GDA with CloudClientConnector
+	 * - Start CDA
+	 * - Verify end-to-end message flow
+	 */
+	@Test
+	public void testEndToEndIntegration()
+	{
+		_Logger.info("Starting Test 3: End-to-end integration test");
+		
+		DeviceDataManager ddm = new DeviceDataManager();
+		
+		try {
+			// Start the GDA
+			ddm.startManager();
+			
+			// Wait for GDA to initialize and connect
+			Thread.sleep(5000L);
+			
+			// Verify GDA is connected to cloud service
+			CloudClientConnector cloudConnector = ddm.getCloudClientConnector();
+			MqttClientConnector mqttConnector = cloudConnector.getMqttClient();
+			assertTrue("GDA not connected to cloud service", mqttConnector != null && mqttConnector.isConnected());
+			
+			// TODO: Start the CDA here
+			// This would typically involve starting the CDA application
+			// and waiting for it to initialize and connect to the GDA
+			
+			// Run the test for 5 minutes
+			Thread.sleep(300000L); // 5 minutes
+			
+			// TODO: Add verification of end-to-end message flow
+			// This would involve checking:
+			// 1. CDA to GDA communication
+			// 2. GDA to cloud service communication
+			// 3. Cloud service actuation events
+			// 4. GDA to CDA actuation events
+			
+		} catch (Exception e) {
+			fail("Test failed with exception: " + e.getMessage());
+		} finally {
+			ddm.stopManager();
+		}
+		
+		_Logger.info("Test 3 complete.");
+	}
 }

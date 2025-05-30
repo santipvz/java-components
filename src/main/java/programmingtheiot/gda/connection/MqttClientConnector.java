@@ -62,6 +62,9 @@
 	 private boolean enableEncryption = false;
 	 private boolean useCleanSession = false;
 	 private boolean enableAutoReconnect = true;
+
+	 private IConnectionListener connListener = null;
+	 private boolean useCloudGatewayConfig =false;
  
 	 // static
  
@@ -80,6 +83,26 @@
  
 		 initClientParameters(ConfigConst.MQTT_GATEWAY_SERVICE);
 	 }
+
+	public MqttClientConnector(boolean useCloudGatewayConfig) {
+		this(useCloudGatewayConfig ? ConfigConst.CLOUD_GATEWAY_SERVICE : null);
+	}
+
+	public MqttClientConnector(String cloudGatewayConfigSectionName) {
+		super();
+
+		if (cloudGatewayConfigSectionName != null && cloudGatewayConfigSectionName.trim().length() > 0) {
+			this.useCloudGatewayConfig = true;
+			initClientParameters(cloudGatewayConfigSectionName);
+		} else {
+			this.useCloudGatewayConfig = false;
+
+			// NOTE: This next method call should have already been created
+			// in Lab Module 10. It is simply a delegate to handle parsing
+			// of the appropriate configuration file section
+			initClientParameters(ConfigConst.MQTT_GATEWAY_SERVICE);
+		}
+	}
  
 	 // public methods
  
@@ -182,93 +205,143 @@
 		 }
 	 }
  
+	@Override
+	public boolean publishMessage(ResourceNameEnum topicName, String msg, int qos) {
+		if (topicName == null) {
+			_Logger.warning("Resource is null. Unable to publish message: " + this.brokerAddr);
+			return false;
+		}
+
+		if (msg == null || msg.length() == 0) {
+			_Logger.warning("Message is null or empty. Unable to publish message: " + this.brokerAddr);
+			return false;
+		}
+
+		return publishMessage(topicName.getResourceName(), msg.getBytes(), qos);
+	}
+
+	 protected boolean publishMessage(String topicName, byte[] payload, int qos) {
+		if (topicName == null) {
+			_Logger.warning("Resource is null. Unable to publish message: " + this.brokerAddr);
+			return false;
+		}
+
+		if (payload == null || payload.length == 0) {
+			_Logger.warning("Message is null or empty. Unable to publish message: " + this.brokerAddr);
+			return false;
+		}
+
+		if (qos < 0 || qos > 2) {
+			_Logger.warning("Invalid QoS. Using default. QoS requested: " + qos);
+			// TODO: retrieve default QoS from config file
+			qos = ConfigConst.DEFAULT_QOS;
+		}
+
+		try {
+			MqttMessage mqttMsg = new MqttMessage();
+			mqttMsg.setQos(qos);
+			mqttMsg.setPayload(payload);
+
+			this.mqttClient.publish(topicName, mqttMsg);
+			return true;
+		} catch (Exception e) {
+			_Logger.log(Level.SEVERE, "Failed to publish message to topic: " + topicName, e);
+		}
+
+		return false;
+	}
+ 
+	@Override
+	public boolean subscribeToTopic(ResourceNameEnum topicName, int qos) {
+		if (topicName == null) {
+			_Logger.warning("Resource is null. Unable to subscribe to topic: " + this.brokerAddr);
+			return false;
+		}
+
+		return subscribeToTopic(topicName.getResourceName(), qos);
+	}
+
+	 protected boolean subscribeToTopic(String topicName, int qos) {
+		return subscribeToTopic(topicName, qos, null);
+	}
+
+	protected boolean subscribeToTopic(String topicName, int qos, IMqttMessageListener listener) {
+		// NOTE: This is the preferred method for subscribing to a given topic,
+		// as it allows the use of an IMqttMessageListener to be defined and
+		// registered as the handler for incoming messages pertaining to the
+		// given topic 'topicName'.
+
+		if (topicName == null) {
+			_Logger.warning("Resource is null. Unable to subscribe to topic: " + this.brokerAddr);
+			return false;
+		}
+
+		if (qos < 0 || qos > 2) {
+			_Logger.warning("Invalid QoS. Using default. QoS requested: " + qos);
+			// TODO: retrieve default QoS from config file
+			qos = ConfigConst.DEFAULT_QOS;
+		}
+
+		try {
+			if (listener != null) {
+				this.mqttClient.subscribe(topicName, qos, listener);
+				_Logger.info("Successfully subscribed to topic with listener: " + topicName);
+			} else {
+				this.mqttClient.subscribe(topicName, qos);
+				_Logger.info("Successfully subscribed to topic: " + topicName);
+			}
+			return true;
+		} catch (Exception e) {
+			_Logger.log(Level.SEVERE, "Failed to subscribe to topic: " + topicName, e);
+		}
+
+		return false;
+}
+
+ 
+	@Override
+	public boolean unsubscribeFromTopic(ResourceNameEnum topicName) {
+		if (topicName == null) {
+			_Logger.warning("Resource is null. Unable to unsubscribe from topic: " + this.brokerAddr);
+			return false;
+		}
+
+		return unsubscribeFromTopic(topicName.getResourceName());
+	}
+
+
+	protected boolean unsubscribeFromTopic(String topicName)
+	{
+		if (topicName == null) {
+			_Logger.warning("Resource is null. Unable to unsubscribe from topic: " + this.brokerAddr);
+			
+			return false;
+		}
+		
+		try {
+			this.mqttClient.unsubscribe(topicName);
+			
+			_Logger.info("Successfully unsubscribed from topic: " + topicName);
+			
+			return true;
+		} catch (Exception e) {
+			_Logger.log(Level.SEVERE, "Failed to unsubscribe from topic: " + topicName, e);
+		}
+		
+		return false;
+	}
 	 @Override
-	 public boolean publishMessage(ResourceNameEnum topicName, String msg, int qos) {
-		 if (topicName == null) {
-			 //_Logger.warning("Resource is null. Unable to publish message: " + this.brokerAddr);
-			 return false;
-		 }
- 
-		 if (msg == null || msg.length() == 0) {
-			 //_Logger.warning("Message is null or empty. Unable to publish message: " + this.brokerAddr);
-			 return false;
-		 }
- 
-		 if (qos < 0 || qos > 2) {
-			 qos = ConfigConst.DEFAULT_QOS;
-			 //_Logger.warning("Invalid QoS value detected. Using default value: " + qos);
-		 }
- 
-		 try {
-			 byte[] payload = msg.getBytes();
-			 MqttMessage mqttMsg = new MqttMessage(payload);
-			 mqttMsg.setQos(qos);
-			 if (this.useAsyncClient) {
-				 this.mqttAsyncClient.publish(topicName.getResourceName(), mqttMsg);
-			 } else {
-				 this.mqttClient.publish(topicName.getResourceName(), mqttMsg);
-			 }
-			 return true;
-		 } catch (Exception e) {
-			 //_Logger.log(Level.SEVERE, "Failed to publish message to topic: " + topicName, e);
-		 }
- 
-		 return false;
-	 }
- 
-	 @Override
-	 public boolean subscribeToTopic(ResourceNameEnum topicName, int qos) {
-		 if (topicName == null) {
-			 _Logger.warning("Resource is null. Unable to subscribe to topic: " + this.brokerAddr);
-			 return false;
-		 }
- 
-		 if (qos < 0 || qos > 2) {
-			 qos = ConfigConst.DEFAULT_QOS;
-			 _Logger.warning("Invalid QoS value detected. Using default value: " + qos);
-		 }
- 
-		 try {
-			 if (this.useAsyncClient) {
-				 this.mqttAsyncClient.subscribe(topicName.getResourceName(), qos);
-			 } else {
-				 this.mqttClient.subscribe(topicName.getResourceName(), qos);
-			 }
-			 _Logger.info("Successfully subscribed to topic: " + topicName.getResourceName());
-			 return true;
-		 } catch (Exception e) {
-			 _Logger.log(Level.SEVERE, "Failed to subscribe to topic: " + topicName, e);
-		 }
- 
-		 return false;
-	 }
- 
-	 @Override
-	 public boolean unsubscribeFromTopic(ResourceNameEnum topicName) {
-		 if (topicName == null) {
-			 _Logger.warning("Resource is null. Unable to unsubscribe from topic: " + this.brokerAddr);
-			 return false;
-		 }
- 
-		 try {
-			 if (this.useAsyncClient) {
-				 this.mqttAsyncClient.unsubscribe(topicName.getResourceName());
-			 } else {
-				 this.mqttClient.unsubscribe(topicName.getResourceName());
-			 }
-			 _Logger.info("Successfully unsubscribed from topic: " + topicName.getResourceName());
-			 return true;
-		 } catch (Exception e) {
-			 _Logger.log(Level.SEVERE, "Failed to unsubscribe from topic: " + topicName, e);
-		 }
- 
-		 return false;
-	 }
- 
-	 @Override
-	 public boolean setConnectionListener(IConnectionListener listener) {
-		 return false;
-	 }
+	public boolean setConnectionListener(IConnectionListener listener) {
+		if (listener != null) {
+			_Logger.info("Setting connection listener.");
+			this.connListener = listener;
+			return true;
+		} else {
+			_Logger.warning("No connection listener specified. Ignoring.");
+		}
+
+		return false;
+	}
  
 	 @Override
 	 public boolean setDataMessageListener(IDataMessageListener listener) {
@@ -282,28 +355,51 @@
  
 	 // callbacks
  
+	@Override
+	public void connectComplete(boolean reconnect, String serverURI)
+	{
+		_Logger.info("MQTT connection successful (is reconnect = " + reconnect + "). Broker: " + serverURI);
+		
+		int qos = 1;
+		
+		try {
+			if (! this.useCloudGatewayConfig) {
+				_Logger.info("Subscribing to topic: " + ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE.getResourceName());
+				
+				this.mqttClient.subscribe(
+					ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE.getResourceName(),
+					qos,
+					new IMqttMessageListener() {
+						@Override
+						public void messageArrived(String topic, MqttMessage message) throws Exception {
+							if (dataMsgListener != null) {
+								String payload = new String(message.getPayload());
+								dataMsgListener.handleIncomingMessage(
+									ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE, payload);
+							}
+						}
+					});
+			}
+		} catch (MqttException e) {
+			_Logger.warning("Failed to subscribe to CDA actuator response topic.");
+		}
+		
+		// Notify the connection listener that we're connected
+		if (this.connListener != null) {
+			this.connListener.onConnect();
+		}
+	}
+ 
 	 @Override
-	 public void connectComplete(boolean reconnect, String serverURI) {
-		 _Logger.info("MQTT connection successful (is reconnect = " + reconnect + "). Broker: " + serverURI);
- 
-		 int qos = ConfigUtil.getInstance().getInteger(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.DEFAULT_QOS_KEY,
-				 ConfigConst.DEFAULT_QOS);
- 
-		 _Logger.info("Subscribing to topic: " + ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE.getResourceName());
-		 this.subscribeToTopic(ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE, qos);
-		 _Logger.info("Subscribing to topic: " + ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE.getResourceName());
-		 this.subscribeToTopic(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE, qos);
-		 _Logger.info("Subscribing to topic: " + ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE.getResourceName());
-		 this.subscribeToTopic(ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE, qos);
- 
-		 // IMPORTANT NOTE: You'll have to parse each message type in the callback method
-		 // `public void messageArrived(String topic, MqttMessage msg) throws Exception`
-	 }
- 
-	 @Override
-	 public void connectionLost(Throwable t) {
-		 _Logger.log(Level.WARNING, "Lost connection to MQTT broker: " + this.brokerAddr, t);
-	 }
+	 public void connectionLost(Throwable t)
+	{
+		_Logger.warning("Connection to broker lost. Will retry soon.");
+		
+		// Notify the connection listener that we're disconnected
+		if (this.connListener != null) {
+			this.connListener.onDisconnect();
+		}
+	}
  
 	 @Override
 	 public void deliveryComplete(IMqttDeliveryToken token) {
@@ -372,9 +468,16 @@
 	  */
 	 private void initClientParameters(String configSectionName) {
 		 ConfigUtil configUtil = ConfigUtil.getInstance();
- 
+
+        // Add logging here
+        _Logger.info("Initializing MQTT client parameters with section: " + configSectionName);
+
 		 this.host = configUtil.getProperty(configSectionName, ConfigConst.HOST_KEY, ConfigConst.DEFAULT_HOST);
 		 this.port = configUtil.getInteger(configSectionName, ConfigConst.PORT_KEY, ConfigConst.DEFAULT_MQTT_PORT);
+
+        // Add logging here
+        _Logger.info("Retrieved host: " + this.host + " and port: " + this.port + " for section: " + configSectionName);
+
 		 this.brokerKeepAlive = configUtil.getInteger(configSectionName, ConfigConst.KEEP_ALIVE_KEY,
 				 ConfigConst.DEFAULT_KEEP_ALIVE);
 		 this.enableEncryption = configUtil.getBoolean(configSectionName, ConfigConst.ENABLE_CRYPT_KEY);
